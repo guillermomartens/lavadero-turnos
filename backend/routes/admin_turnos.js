@@ -3,6 +3,7 @@ const db = require('../db/query');
 const { withTransaction } = require('../db/query');
 const { requireAuth } = require('../middleware/auth');
 const { getSlotsDisponibles } = require('../utils/disponibilidad');
+const { enviarConfirmacionTurno } = require('../utils/email');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -82,7 +83,19 @@ router.post('/', async (req, res) => {
       return result.lastInsertRowid;
     });
 
-    res.status(201).json(await db.get('SELECT * FROM turnos WHERE id = ?', [id]));
+    const turnoCompleto = await db.get(`
+      SELECT t.*, s.nombre as servicio_nombre, sec.nombre as sector_nombre,
+             c.nombre as cliente_nombre, c.email as cliente_email
+      FROM turnos t
+      JOIN servicios s ON s.id = t.servicio_id
+      JOIN sectores sec ON sec.id = t.sector_id
+      JOIN clientes c ON c.id = t.cliente_id
+      WHERE t.id = ?
+    `, [id]);
+
+    enviarConfirmacionTurno(turnoCompleto);
+
+    res.status(201).json(turnoCompleto);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al crear el turno.' });
