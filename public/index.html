@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turnos | Lavadero</title>
+<meta name="description" content="Sistema de turnos online para lavado de vehículos.">
+<link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">🚿</div>
+      <div>
+        AQUA<span style="color:var(--aqua-300)">TURNOS</span>
+        <div class="brand-sub">Reservá tu lavado</div>
+      </div>
+    </div>
+    <button class="btn-ghost-header" id="btnMisTurnos">Mis turnos</button>
+  </div>
+  <div class="hero-text">
+    <h1 id="heroTitle">Reservá tu turno</h1>
+    <p id="heroSubtitle">Completá los datos y elegí el horario que más te convenga.</p>
+  </div>
+</div>
+
+<div class="wave-progress">
+  <div class="wave-track" id="waveTrack"></div>
+  <div class="wave-labels" id="waveLabels"></div>
+</div>
+
+<main>
+  <div id="errorBox"></div>
+  <div id="stepsContainer"></div>
+</main>
+
+<footer class="powered">Sistema de turnos propio · lavadero</footer>
+
+<div id="modalMisTurnos" style="display:none;"></div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

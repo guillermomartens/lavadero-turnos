@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Back Office | Lavadero</title>
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen" style="display:none;">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="mark">🚿</div>
+      <span>AQUATURNOS</span>
+    </div>
+    <h2>Acceder al panel</h2>
+    <div class="sub">Gestión de turnos, servicios y reportes.</div>
+    <div id="loginError"></div>
+    <label>E-mail</label>
+    <input type="email" id="loginEmail" placeholder="admin@lavadero.com">
+    <label>Contraseña</label>
+    <input type="password" id="loginPassword" placeholder="••••••••">
+    <button id="btnLogin">Ingresar</button>
+    <div class="login-hint">Demo: admin@lavadero.com / admin123</div>
+  </div>
+</div>
+
+<div id="appShell" class="app-shell" style="display:none;">
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <div class="mark">🚿</div>
+      <span>AQUATURNOS</span>
+    </div>
+    <div class="nav-item" data-page="agenda">📅 Agenda</div>
+    <div class="nav-item" data-page="servicios">🧴 Servicios</div>
+    <div class="nav-item" data-page="sectores">🅿️ Sectores y horarios</div>
+    <div class="nav-item" data-page="reportes">📊 Reportes</div>
+    <div class="sidebar-footer">
+      <div class="user-name" id="sidebarUserName"></div>
+      <button class="btn-logout" id="btnLogout">Cerrar sesión</button>
+    </div>
+  </div>
+  <div class="main-area" id="mainArea"></div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/ui.js"></script>
+<script src="/admin/js/agenda.js"></script>
+<script src="/admin/js/servicios.js"></script>
+<script src="/admin/js/sectores.js"></script>
+<script src="/admin/js/reportes.js"></script>
+<script src="/admin/js/main.js"></script>
+</body>
+</html>
