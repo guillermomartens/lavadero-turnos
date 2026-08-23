@@ -2,8 +2,9 @@ const bcrypt = require('bcryptjs');
 const { initSchema } = require('./connection');
 const db = require('./query');
 
-async function seed() {
-  console.log('🌱 Cargando datos de ejemplo...');
+/** Carga datos de ejemplo. Segura de llamar aunque ya haya datos (usa INSERT OR IGNORE
+ *  para el admin, y solo crea categorías/servicios/sectores si la tabla está vacía). */
+async function runSeed() {
   await initSchema();
 
   const passwordHash = bcrypt.hashSync('admin123', 10);
@@ -11,6 +12,12 @@ async function seed() {
     `INSERT OR IGNORE INTO admin_users (nombre, email, password_hash, rol) VALUES (?, ?, ?, ?)`,
     ['Administrador', 'admin@lavadero.com', passwordHash, 'admin']
   );
+
+  const existentes = await db.get('SELECT COUNT(*) as c FROM categorias');
+  if (existentes.c > 0) {
+    console.log('ℹ️  Ya hay categorías cargadas, no se agregan datos de ejemplo nuevamente.');
+    return;
+  }
 
   const cat1 = await db.run(`INSERT INTO categorias (nombre, orden) VALUES (?, ?)`, ['Lavadero Principal', 1]);
   const catLavadero = cat1.lastInsertRowid;
@@ -53,11 +60,17 @@ async function seed() {
     await db.run(`INSERT INTO horarios (sector_id, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?)`, [sectorExpress, dia, '09:00', '20:00']);
   }
 
-  console.log('✅ Seed completo.');
-  console.log('   Admin de prueba -> email: admin@lavadero.com / password: admin123');
+  console.log('✅ Datos de ejemplo cargados (categorías, servicios, sectores, horarios, admin de prueba).');
 }
 
-seed().catch(err => {
-  console.error('❌ Error al cargar datos de ejemplo:', err);
-  process.exit(1);
-});
+// Si se ejecuta directamente (node backend/db/seed.js / npm run seed), corre y termina.
+if (require.main === module) {
+  runSeed()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error('❌ Error al cargar datos de ejemplo:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = { runSeed };
