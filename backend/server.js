@@ -4,6 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const { initSchema } = require('./db/connection');
+const { runSeed } = require('./db/seed');
 
 const authRoutes = require('./routes/auth');
 const publicRoutes = require('./routes/public');
@@ -41,6 +42,7 @@ app.use((req, res) => {
 
 async function start() {
   await initSchema(); // crea las tablas si no existen (Turso o archivo local)
+  await runSeed();     // carga admin de prueba y datos de ejemplo SOLO si la base está vacía
   app.listen(PORT, () => {
     console.log(`🚗💦  Servidor de turnos corriendo en http://localhost:${PORT}`);
     console.log(`   Cliente:     http://localhost:${PORT}/`);
