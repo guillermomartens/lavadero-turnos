@@ -68,16 +68,8 @@ body {
   font-size: 1.25rem;
   letter-spacing: -0.01em;
 }
-.brand-logo-card {
-  background: white;
-  border-radius: 12px;
-  padding: 6px 14px;
-  display: flex;
-  align-items: center;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
-}
 .brand-logo-img {
-  height: 34px;
+  height: 42px;
   width: auto;
   display: block;
 }
