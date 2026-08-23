@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db/query');
 const { withTransaction } = require('../db/query');
 const { getSlotsDisponibles } = require('../utils/disponibilidad');
+const { enviarConfirmacionTurno, enviarCancelacionTurno } = require('../utils/email');
 
 const router = express.Router();
 
@@ -161,12 +162,17 @@ router.post('/turnos', async (req, res) => {
     });
 
     const turno = await db.get(`
-      SELECT t.*, s.nombre as servicio_nombre, sec.nombre as sector_nombre
+      SELECT t.*, s.nombre as servicio_nombre, sec.nombre as sector_nombre,
+             c.nombre as cliente_nombre, c.email as cliente_email
       FROM turnos t
       JOIN servicios s ON s.id = t.servicio_id
       JOIN sectores sec ON sec.id = t.sector_id
+      JOIN clientes c ON c.id = t.cliente_id
       WHERE t.id = ?
     `, [turnoId]);
+
+    enviarConfirmacionTurno(turno); // no bloquea la respuesta; si falla, solo queda en el log del servidor
+
     res.status(201).json(turno);
   } catch (err) {
     console.error(err);
@@ -202,7 +208,12 @@ router.put('/turnos/:id/cancelar', async (req, res) => {
     const { telefono } = req.body;
 
     const turno = await db.get(`
-      SELECT t.*, c.telefono FROM turnos t JOIN clientes c ON c.id = t.cliente_id WHERE t.id = ?
+      SELECT t.*, c.telefono, c.nombre as cliente_nombre, c.email as cliente_email,
+             s.nombre as servicio_nombre
+      FROM turnos t
+      JOIN clientes c ON c.id = t.cliente_id
+      JOIN servicios s ON s.id = t.servicio_id
+      WHERE t.id = ?
     `, [id]);
 
     if (!turno) return res.status(404).json({ error: 'Turno no encontrado.' });
@@ -212,6 +223,9 @@ router.put('/turnos/:id/cancelar', async (req, res) => {
     }
 
     await db.run(`UPDATE turnos SET estado = 'cancelado', actualizado_en = datetime('now') WHERE id = ?`, [id]);
+
+    enviarCancelacionTurno(turno); // no bloquea la respuesta
+
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
