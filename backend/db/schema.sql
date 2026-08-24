@@ -47,13 +47,21 @@ CREATE TABLE IF NOT EXISTS sectores (
 
 CREATE TABLE IF NOT EXISTS servicios (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
   nombre TEXT NOT NULL,
   descripcion TEXT,
   duracion_min INTEGER NOT NULL DEFAULT 30,
-  precio REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
   aplica_tipo_vehiculo TEXT -- JSON array opcional: ["Auto","SUV"] o NULL = todos
+);
+
+-- Asocia un servicio a una o mas categorias, cada una con su propio precio
+-- (un mismo servicio puede valer distinto en AquaGo que en Wash Point, por ejemplo)
+CREATE TABLE IF NOT EXISTS servicio_categorias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  servicio_id INTEGER NOT NULL REFERENCES servicios(id) ON DELETE CASCADE,
+  categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
+  precio REAL NOT NULL DEFAULT 0,
+  UNIQUE(servicio_id, categoria_id)
 );
 
 -- Horarios de atencion por sector y dia de semana (0=Domingo ... 6=Sabado)
@@ -81,6 +89,7 @@ CREATE TABLE IF NOT EXISTS turnos (
   cliente_id INTEGER NOT NULL REFERENCES clientes(id),
   vehiculo_id INTEGER REFERENCES vehiculos(id),
   servicio_id INTEGER NOT NULL REFERENCES servicios(id),
+  categoria_id INTEGER REFERENCES categorias(id),
   sector_id INTEGER NOT NULL REFERENCES sectores(id),
   fecha TEXT NOT NULL,        -- 'YYYY-MM-DD'
   hora_inicio TEXT NOT NULL,  -- 'HH:MM'
@@ -96,5 +105,6 @@ CREATE TABLE IF NOT EXISTS turnos (
 CREATE INDEX IF NOT EXISTS idx_turnos_fecha ON turnos(fecha);
 CREATE INDEX IF NOT EXISTS idx_turnos_sector_fecha ON turnos(sector_id, fecha);
 CREATE INDEX IF NOT EXISTS idx_turnos_cliente ON turnos(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_servicios_categoria ON servicios(categoria_id);
+CREATE INDEX IF NOT EXISTS idx_servicio_categorias_servicio ON servicio_categorias(servicio_id);
+CREATE INDEX IF NOT EXISTS idx_servicio_categorias_categoria ON servicio_categorias(categoria_id);
 CREATE INDEX IF NOT EXISTS idx_horarios_sector ON horarios(sector_id);

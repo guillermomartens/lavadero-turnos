@@ -31,26 +31,39 @@ async function runSeed() {
   const sec3 = await db.run(`INSERT INTO sectores (nombre, categoria_id, capacidad) VALUES (?, ?, ?)`, ['Bahía Express', catExpress, 2]);
   const sectorExpress = sec3.lastInsertRowid;
 
-  await db.run(
-    `INSERT INTO servicios (categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?, ?, ?)`,
-    [catLavadero, 'Lavado Completo', 'Exterior + interior + aspirado', 45, 8000, null]
+  // Servicio exclusivo de "Lavadero Principal"
+  const s1 = await db.run(
+    `INSERT INTO servicios (nombre, descripcion, duracion_min, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?)`,
+    ['Lavado Completo', 'Exterior + interior + aspirado', 45, null]
   );
-  await db.run(
-    `INSERT INTO servicios (categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?, ?, ?)`,
-    [catLavadero, 'Lavado Exterior', 'Carrocería y llantas', 25, 5000, null]
+  await db.run(`INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)`, [s1.lastInsertRowid, catLavadero, 8000]);
+
+  // Servicio disponible en AMBAS categorías, con precio distinto en cada una
+  const s2 = await db.run(
+    `INSERT INTO servicios (nombre, descripcion, duracion_min, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?)`,
+    ['Lavado Exterior', 'Carrocería y llantas', 25, null]
   );
-  await db.run(
-    `INSERT INTO servicios (categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?, ?, ?)`,
-    [catLavadero, 'Encerado', 'Encerado protector de pintura', 60, 12000, JSON.stringify(['Auto', 'Camioneta', 'SUV'])]
+  await db.run(`INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)`, [s2.lastInsertRowid, catLavadero, 5000]);
+  await db.run(`INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)`, [s2.lastInsertRowid, catExpress, 4000]);
+
+  const s3 = await db.run(
+    `INSERT INTO servicios (nombre, descripcion, duracion_min, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?)`,
+    ['Encerado', 'Encerado protector de pintura', 60, JSON.stringify(['Auto', 'Camioneta', 'SUV'])]
   );
-  await db.run(
-    `INSERT INTO servicios (categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?, ?, ?)`,
-    [catExpress, 'Express Auto', 'Lavado rápido exterior', 15, 3500, JSON.stringify(['Auto'])]
+  await db.run(`INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)`, [s3.lastInsertRowid, catLavadero, 12000]);
+
+  // Servicios exclusivos de "Lavado Express"
+  const s4 = await db.run(
+    `INSERT INTO servicios (nombre, descripcion, duracion_min, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?)`,
+    ['Express Auto', 'Lavado rápido exterior', 15, JSON.stringify(['Auto'])]
   );
-  await db.run(
-    `INSERT INTO servicios (categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?, ?, ?)`,
-    [catExpress, 'Express Moto', 'Lavado rápido para motos', 10, 2000, JSON.stringify(['Moto'])]
+  await db.run(`INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)`, [s4.lastInsertRowid, catExpress, 3500]);
+
+  const s5 = await db.run(
+    `INSERT INTO servicios (nombre, descripcion, duracion_min, aplica_tipo_vehiculo) VALUES (?, ?, ?, ?)`,
+    ['Express Moto', 'Lavado rápido para motos', 10, JSON.stringify(['Moto'])]
   );
+  await db.run(`INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)`, [s5.lastInsertRowid, catExpress, 2000]);
 
   for (let dia = 1; dia <= 6; dia++) {
     await db.run(`INSERT INTO horarios (sector_id, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?)`, [sectorBox1, dia, '08:00', '18:00']);
