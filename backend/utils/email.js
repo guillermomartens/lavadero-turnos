@@ -58,6 +58,14 @@ function moneyStr(n) {
 /** Email de confirmación al crear un turno. */
 async function enviarConfirmacionTurno(turno) {
   const fecha = formatFecha(turno.fecha);
+  const numeroWhatsapp = process.env.WHATSAPP_NUMERO;
+  const botonWhatsapp = numeroWhatsapp ? `
+        <a href="https://wa.me/${numeroWhatsapp}?text=${encodeURIComponent(`Hola! Quiero confirmar mi turno de ${turno.servicio_nombre} el ${fecha} a las ${turno.hora_inicio}hs.`)}"
+           style="display:block;text-align:center;background:#25D366;color:white;text-decoration:none;
+                  padding:12px;border-radius:8px;font-weight:bold;font-size:14px;margin-top:16px;">
+          💬 Confirmar por WhatsApp
+        </a>` : '';
+
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #0D3B3E, #135E62); padding: 24px; border-radius: 12px 12px 0 0;">
@@ -72,6 +80,7 @@ async function enviarConfirmacionTurno(turno) {
           <tr><td style="padding: 6px 0; color: #6C8C8C;">Hora</td><td style="padding: 6px 0; text-align: right; font-weight: bold;">${turno.hora_inicio}hs</td></tr>
           <tr><td style="padding: 10px 0 0; color: #6C8C8C; border-top: 1px solid #DCE9E9;">Total</td><td style="padding: 10px 0 0; text-align: right; font-weight: bold; border-top: 1px solid #DCE9E9;">${moneyStr(turno.precio)}</td></tr>
         </table>
+        ${botonWhatsapp}
         <p style="color: #6C8C8C; font-size: 13px; margin-top: 20px;">Pago en el lavadero al finalizar el servicio. Si necesitás cancelar o ver tus turnos, ingresá a nuestro sitio y usá la opción "Mis turnos" con tu número de teléfono.</p>
       </div>
     </div>
