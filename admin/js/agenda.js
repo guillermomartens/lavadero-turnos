@@ -70,7 +70,7 @@ const AgendaPage = {
     const table = el('table', {},
       el('thead', {}, el('tr', {},
         el('th', {}, 'Hora'), el('th', {}, 'Cliente'), el('th', {}, 'Vehículo'),
-        el('th', {}, 'Servicio'), el('th', {}, 'Sector'), el('th', {}, 'Precio'),
+        el('th', {}, 'Categoría'), el('th', {}, 'Servicio'), el('th', {}, 'Sector'), el('th', {}, 'Precio'),
         el('th', {}, 'Pago'), el('th', {}, 'Estado'), el('th', {}, '')
       ))
     );
@@ -106,6 +106,7 @@ const AgendaPage = {
         el('td', {}, `${t.hora_inicio}–${t.hora_fin}`),
         el('td', {}, `${t.cliente_nombre} ${t.cliente_apellido}`, el('div', { style: 'font-size:.76rem;color:#6C8C8C' }, t.cliente_telefono)),
         el('td', {}, t.vehiculo_tipo ? `${t.vehiculo_tipo}${t.vehiculo_marca ? ' - ' + t.vehiculo_marca : ''}` : '—'),
+        el('td', {}, t.categoria_nombre || '—'),
         el('td', {}, t.servicio_nombre),
         el('td', {}, t.sector_nombre),
         el('td', {}, money(t.precio)),
@@ -130,8 +131,13 @@ const AgendaPage = {
 
   async openNuevoTurno() {
     const categorias = await api('/admin/catalogo/categorias');
-    const servicios = await api('/admin/catalogo/servicios');
-    const sectores = await api('/admin/catalogo/sectores');
+    const sectoresTodos = await api('/admin/catalogo/sectores');
+    const serviciosTodos = await api('/admin/catalogo/servicios'); // cada uno con .categorias[]
+
+    const servicioBox = el('div', { id: 'ntServicioBox' },
+      el('div', { class: 'empty-note', style: 'color:#6C8C8C;font-size:.85rem' }, 'Elegí primero una categoría.')
+    );
+    const sectorBox = el('div', { id: 'ntSectorBox' });
 
     const form = el('div', {},
       el('h3', {}, 'Nuevo turno'),
@@ -150,24 +156,34 @@ const AgendaPage = {
           )),
         el('div', { class: 'field' }, el('label', {}, 'Marca'), el('input', { id: 'ntMarca' }))
       ),
-      el('div', { class: 'field' }, el('label', {}, 'Servicio'),
-        el('select', { id: 'ntServicio' },
+      el('div', { class: 'field' }, el('label', {}, 'Categoría'),
+        el('select', {
+          id: 'ntCategoria',
+          onchange: (e) => this.actualizarServiciosYSectoresNuevoTurno(e.target.value, serviciosTodos, sectoresTodos)
+        },
           el('option', { value: '' }, 'Seleccione...'),
-          ...servicios.map(s => el('option', { value: s.id }, `${s.nombre} (${s.categoria_nombre}) - ${money(s.precio)}`))
+          ...categorias.map(c => el('option', { value: c.id }, c.nombre))
         )),
-      el('div', { class: 'field' }, el('label', {}, 'Sector'),
-        el('select', { id: 'ntSector' },
-          el('option', { value: '' }, 'Seleccione...'),
-          ...sectores.map(s => el('option', { value: s.id }, s.nombre))
-        )),
+      el('div', { class: 'field' }, el('label', {}, 'Servicio'), servicioBox),
+      el('div', { class: 'field' }, el('label', {}, 'Sector'), sectorBox),
       el('div', { class: 'field-row' },
         el('div', { class: 'field' }, el('label', {}, 'Fecha'), el('input', { type: 'date', id: 'ntFecha', value: this.fecha })),
         el('div', { class: 'field' }, el('label', {}, 'Hora'), el('input', { type: 'time', id: 'ntHora' }))
       ),
+      el('div', { id: 'ntError' }),
       el('div', { class: 'modal-actions' },
         el('button', { class: 'btn btn-secondary', onclick: closeModal }, 'Cancelar'),
         el('button', {
           class: 'btn btn-primary', onclick: async () => {
+            const errBox = $('#ntError');
+            errBox.innerHTML = '';
+            const categoriaId = $('#ntCategoria').value;
+            const servicioSelect = $('#ntServicioSelect');
+            const sectorSelect = $('#ntSectorSelect');
+            if (!categoriaId || !servicioSelect || !servicioSelect.value || !sectorSelect || !sectorSelect.value) {
+              errBox.appendChild(el('div', { class: 'login-error' }, 'Completá categoría, servicio y sector.'));
+              return;
+            }
             try {
               await api('/admin/turnos', {
                 method: 'POST',
@@ -175,18 +191,53 @@ const AgendaPage = {
                   nombre: $('#ntNombre').value, apellido: $('#ntApellido').value,
                   telefono: $('#ntTelefono').value, email: $('#ntEmail').value || null,
                   vehiculo: { tipo: $('#ntVehiculoTipo').value, marca: $('#ntMarca').value },
-                  servicio_id: $('#ntServicio').value, sector_id: $('#ntSector').value,
+                  servicio_id: servicioSelect.value, categoria_id: categoriaId, sector_id: sectorSelect.value,
                   fecha: $('#ntFecha').value, hora_inicio: $('#ntHora').value
                 })
               });
               toast('Turno creado.');
               closeModal();
               this.load();
-            } catch (e) { toast(e.message, true); }
+            } catch (e) { errBox.innerHTML = ''; errBox.appendChild(el('div', { class: 'login-error' }, e.message)); }
           }
         }, 'Guardar turno')
       )
     );
     openModal(form);
+  },
+
+  actualizarServiciosYSectoresNuevoTurno(categoriaId, serviciosTodos, sectoresTodos) {
+    const servicioBox = $('#ntServicioBox');
+    const sectorBox = $('#ntSectorBox');
+    servicioBox.innerHTML = '';
+    sectorBox.innerHTML = '';
+
+    if (!categoriaId) {
+      servicioBox.appendChild(el('div', { class: 'empty-note', style: 'color:#6C8C8C;font-size:.85rem' }, 'Elegí primero una categoría.'));
+      return;
+    }
+
+    // Servicios que tienen precio asignado para esta categoría
+    const serviciosDeCategoria = serviciosTodos
+      .map(s => {
+        const asociacion = (s.categorias || []).find(c => String(c.categoria_id) === String(categoriaId));
+        return asociacion ? { id: s.id, nombre: s.nombre, precio: asociacion.precio } : null;
+      })
+      .filter(Boolean);
+
+    servicioBox.appendChild(
+      el('select', { id: 'ntServicioSelect' },
+        el('option', { value: '' }, 'Seleccione...'),
+        ...serviciosDeCategoria.map(s => el('option', { value: s.id }, `${s.nombre} - ${money(s.precio)}`))
+      )
+    );
+
+    const sectoresDeCategoria = sectoresTodos.filter(s => String(s.categoria_id) === String(categoriaId));
+    sectorBox.appendChild(
+      el('select', { id: 'ntSectorSelect' },
+        el('option', { value: '' }, 'Seleccione...'),
+        ...sectoresDeCategoria.map(s => el('option', { value: s.id }, s.nombre))
+      )
+    );
   }
 };

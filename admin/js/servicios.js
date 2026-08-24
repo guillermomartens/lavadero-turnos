@@ -44,17 +44,21 @@ const ServiciosPage = {
     }
     const table = el('table', {},
       el('thead', {}, el('tr', {},
-        el('th', {}, 'Servicio'), el('th', {}, 'Categoría'), el('th', {}, 'Duración'),
-        el('th', {}, 'Precio'), el('th', {}, 'Estado'), el('th', {}, '')
+        el('th', {}, 'Servicio'), el('th', {}, 'Categorías y precios'), el('th', {}, 'Duración'),
+        el('th', {}, 'Estado'), el('th', {}, '')
       ))
     );
     const tbody = el('tbody');
     this.servicios.forEach(s => {
+      const catChips = (s.categorias || []).length > 0
+        ? el('div', { style: 'display:flex;flex-wrap:wrap;gap:5px' },
+            ...s.categorias.map(c => el('span', { class: 'badge confirmado' }, `${c.categoria_nombre}: ${money(c.precio)}`))
+          )
+        : el('span', { style: 'color:#B3311F;font-size:.78rem;font-weight:600' }, '⚠ Sin categorías asignadas');
       tbody.appendChild(el('tr', {},
         el('td', {}, el('strong', {}, s.nombre), el('div', { style: 'font-size:.76rem;color:#6C8C8C' }, s.descripcion || '')),
-        el('td', {}, s.categoria_nombre),
+        el('td', {}, catChips),
         el('td', {}, `${s.duracion_min} min`),
-        el('td', {}, money(s.precio)),
         el('td', {}, s.activo ? el('span', { class: 'badge confirmado' }, 'Activo') : el('span', { class: 'badge cancelado' }, 'Inactivo')),
         el('td', {},
           el('button', { class: 'btn btn-secondary btn-sm', style: 'margin-right:6px', onclick: () => this.openServicioForm(s) }, 'Editar'),
@@ -93,34 +97,103 @@ const ServiciosPage = {
   },
 
   openServicioForm(s = null) {
+    // Mapa rápido: categoria_id -> precio actual (si el servicio ya está asociado a ella)
+    const preciosActuales = {};
+    if (s && s.categorias) {
+      s.categorias.forEach(c => { preciosActuales[c.categoria_id] = { precio: c.precio, asociacionId: c.id }; });
+    }
+
+    const filasCategorias = this.categorias.map(c => {
+      const yaAsociada = preciosActuales[c.id];
+      const checkboxId = `svCat_${c.id}`;
+      const precioId = `svCatPrecio_${c.id}`;
+      const check = el('input', {
+        type: 'checkbox', id: checkboxId, ...(yaAsociada ? { checked: 'checked' } : {}),
+        onchange: (e) => { $(`#${precioId}`).disabled = !e.target.checked; }
+      });
+      const precioInput = el('input', {
+        type: 'number', id: precioId, placeholder: 'Precio',
+        value: yaAsociada ? yaAsociada.precio : '', ...(yaAsociada ? {} : { disabled: 'disabled' })
+      });
+      return el('div', { class: 'field-row', style: 'align-items:center;margin-bottom:8px' },
+        el('label', { style: 'display:flex;align-items:center;gap:8px;margin:0' }, check, c.nombre),
+        precioInput
+      );
+    });
+
     const form = el('div', {},
       el('h3', {}, s ? 'Editar servicio' : 'Nuevo servicio'),
       el('div', { class: 'field' }, el('label', {}, 'Nombre'), el('input', { id: 'svNombre', value: s ? s.nombre : '' })),
       el('div', { class: 'field' }, el('label', {}, 'Descripción'), el('input', { id: 'svDesc', value: s ? (s.descripcion || '') : '' })),
-      el('div', { class: 'field' }, el('label', {}, 'Categoría'),
-        el('select', { id: 'svCategoria' },
-          ...this.categorias.map(c => el('option', { value: c.id, ...(s && s.categoria_id == c.id ? { selected: 'selected' } : {}) }, c.nombre))
-        )),
-      el('div', { class: 'field-row' },
-        el('div', { class: 'field' }, el('label', {}, 'Duración (min)'), el('input', { type: 'number', id: 'svDuracion', value: s ? s.duracion_min : 30 })),
-        el('div', { class: 'field' }, el('label', {}, 'Precio ($)'), el('input', { type: 'number', id: 'svPrecio', value: s ? s.precio : 0 }))
+      el('div', { class: 'field' }, el('label', {}, 'Duración (min)'), el('input', { type: 'number', id: 'svDuracion', value: s ? s.duracion_min : 30 })),
+      el('div', { class: 'field' },
+        el('label', {}, 'Categorías donde se ofrece (con su precio)'),
+        el('div', { style: 'font-size:.76rem;color:#6C8C8C;margin-bottom:8px' }, 'Marcá en qué categorías está disponible este servicio. Podés ponerle un precio distinto en cada una.'),
+        ...filasCategorias
       ),
+      el('div', { id: 'svError' }),
       el('div', { class: 'modal-actions' },
         el('button', { class: 'btn btn-secondary', onclick: closeModal }, 'Cancelar'),
         el('button', {
           class: 'btn btn-primary', onclick: async () => {
-            const payload = {
-              nombre: $('#svNombre').value, descripcion: $('#svDesc').value,
-              categoria_id: $('#svCategoria').value, duracion_min: Number($('#svDuracion').value),
-              precio: Number($('#svPrecio').value)
+            const errBox = $('#svError');
+            errBox.innerHTML = '';
+
+            const categoriasSeleccionadas = this.categorias
+              .filter(c => $(`#svCat_${c.id}`).checked)
+              .map(c => ({
+                categoria_id: c.id,
+                precio: Number($(`#svCatPrecio_${c.id}`).value) || 0,
+                asociacionId: preciosActuales[c.id] ? preciosActuales[c.id].asociacionId : null
+              }));
+
+            if (categoriasSeleccionadas.length === 0) {
+              errBox.appendChild(el('div', { class: 'login-error' }, 'Marcá al menos una categoría para este servicio.'));
+              return;
+            }
+
+            const datosServicio = {
+              nombre: $('#svNombre').value,
+              descripcion: $('#svDesc').value,
+              duracion_min: Number($('#svDuracion').value)
             };
+
             try {
-              if (s) await api(`/admin/catalogo/servicios/${s.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-              else await api('/admin/catalogo/servicios', { method: 'POST', body: JSON.stringify(payload) });
+              let servicioId;
+              if (s) {
+                servicioId = s.id;
+                await api(`/admin/catalogo/servicios/${s.id}`, { method: 'PUT', body: JSON.stringify(datosServicio) });
+
+                // Actualizar asociaciones: crear nuevas, actualizar precios, borrar las que se desmarcaron
+                const idsSeleccionados = categoriasSeleccionadas.map(c => c.categoria_id);
+                const asociacionesABorrar = (s.categorias || []).filter(c => !idsSeleccionados.includes(c.categoria_id));
+                for (const a of asociacionesABorrar) {
+                  await api(`/admin/catalogo/servicio-categorias/${a.id}`, { method: 'DELETE' });
+                }
+                for (const c of categoriasSeleccionadas) {
+                  if (c.asociacionId) {
+                    await api(`/admin/catalogo/servicio-categorias/${c.asociacionId}`, { method: 'PUT', body: JSON.stringify({ precio: c.precio }) });
+                  } else {
+                    await api('/admin/catalogo/servicio-categorias', {
+                      method: 'POST',
+                      body: JSON.stringify({ servicio_id: servicioId, categoria_id: c.categoria_id, precio: c.precio })
+                    });
+                  }
+                }
+              } else {
+                const nuevo = await api('/admin/catalogo/servicios', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    ...datosServicio,
+                    categorias: categoriasSeleccionadas.map(c => ({ categoria_id: c.categoria_id, precio: c.precio }))
+                  })
+                });
+                servicioId = nuevo.id;
+              }
               toast('Servicio guardado.');
               closeModal();
               this.render();
-            } catch (e) { toast(e.message, true); }
+            } catch (e) { errBox.innerHTML = ''; errBox.appendChild(el('div', { class: 'login-error' }, e.message)); }
           }
         }, 'Guardar')
       )

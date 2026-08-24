@@ -53,6 +53,23 @@ const ReportesPage = {
     );
     body.appendChild(kpis);
 
+    // Por categoria (AquaGo vs Wash Point, etc) - destacado porque es la comparacion clave del negocio
+    if (data.porCategoria && data.porCategoria.length > 0) {
+      const catCard = el('div', { class: 'card', style: 'margin-bottom:16px' },
+        el('h3', { style: 'margin-bottom:10px' }, 'Por categoría')
+      );
+      const catGrid = el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px' });
+      data.porCategoria.forEach(c => {
+        catGrid.appendChild(el('div', { style: 'border:1px solid var(--line);border-radius:10px;padding:14px' },
+          el('div', { style: 'font-weight:700;margin-bottom:6px' }, c.categoria),
+          el('div', { style: 'font-size:1.3rem;font-weight:700;color:var(--teal-500)' }, money(c.ingresos)),
+          el('div', { style: 'font-size:.78rem;color:#6C8C8C' }, `${c.cantidad} turnos`)
+        ));
+      });
+      catCard.appendChild(catGrid);
+      body.appendChild(catCard);
+    }
+
     const twoCol = el('div', { class: 'two-col' });
 
     // Grafico por dia
