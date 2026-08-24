@@ -35,40 +35,87 @@ router.delete('/categorias/:id', wrap(async (req, res) => {
 }));
 
 // ---------------- Servicios ----------------
+// Cada servicio puede estar asociado a una o mas categorias, cada una con su
+// propio precio (ver tabla servicio_categorias). Este endpoint devuelve cada
+// servicio junto con la lista de categorias en las que está disponible.
 router.get('/servicios', wrap(async (req, res) => {
-  res.json(await db.all(`
-    SELECT s.*, c.nombre as categoria_nombre FROM servicios s
-    JOIN categorias c ON c.id = s.categoria_id
-    ORDER BY c.orden, s.nombre
-  `));
+  const servicios = await db.all('SELECT * FROM servicios ORDER BY nombre');
+  const asociaciones = await db.all(`
+    SELECT sc.id, sc.servicio_id, sc.categoria_id, sc.precio, c.nombre as categoria_nombre
+    FROM servicio_categorias sc JOIN categorias c ON c.id = sc.categoria_id
+    ORDER BY c.orden, c.nombre
+  `);
+  const resultado = servicios.map(s => ({
+    ...s,
+    categorias: asociaciones.filter(a => a.servicio_id === s.id)
+  }));
+  res.json(resultado);
 }));
+
 router.post('/servicios', wrap(async (req, res) => {
-  const { categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo } = req.body;
+  const { nombre, descripcion, duracion_min, aplica_tipo_vehiculo, categorias } = req.body;
+  // categorias: [{ categoria_id, precio }, ...] (opcional, se puede asociar despues)
   const info = await db.run(`
-    INSERT INTO servicios (categoria_id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `, [categoria_id, nombre, descripcion || null, duracion_min || 30, precio || 0,
+    INSERT INTO servicios (nombre, descripcion, duracion_min, aplica_tipo_vehiculo)
+    VALUES (?, ?, ?, ?)
+  `, [nombre, descripcion || null, duracion_min || 30,
       aplica_tipo_vehiculo ? JSON.stringify(aplica_tipo_vehiculo) : null]);
-  res.status(201).json(await db.get('SELECT * FROM servicios WHERE id = ?', [info.lastInsertRowid]));
+
+  const servicioId = info.lastInsertRowid;
+
+  if (Array.isArray(categorias)) {
+    for (const c of categorias) {
+      await db.run(
+        'INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)',
+        [servicioId, c.categoria_id, c.precio || 0]
+      );
+    }
+  }
+
+  res.status(201).json(await db.get('SELECT * FROM servicios WHERE id = ?', [servicioId]));
 }));
+
 router.put('/servicios/:id', wrap(async (req, res) => {
-  const { categoria_id, nombre, descripcion, duracion_min, precio, activo, aplica_tipo_vehiculo } = req.body;
+  const { nombre, descripcion, duracion_min, activo, aplica_tipo_vehiculo } = req.body;
   await db.run(`
     UPDATE servicios SET
-      categoria_id = COALESCE(?, categoria_id),
       nombre = COALESCE(?, nombre),
       descripcion = COALESCE(?, descripcion),
       duracion_min = COALESCE(?, duracion_min),
-      precio = COALESCE(?, precio),
       activo = COALESCE(?, activo),
       aplica_tipo_vehiculo = COALESCE(?, aplica_tipo_vehiculo)
     WHERE id = ?
-  `, [categoria_id ?? null, nombre ?? null, descripcion ?? null, duracion_min ?? null, precio ?? null,
+  `, [nombre ?? null, descripcion ?? null, duracion_min ?? null,
       activo ?? null, aplica_tipo_vehiculo ? JSON.stringify(aplica_tipo_vehiculo) : null, req.params.id]);
   res.json(await db.get('SELECT * FROM servicios WHERE id = ?', [req.params.id]));
 }));
+
 router.delete('/servicios/:id', wrap(async (req, res) => {
   await db.run('DELETE FROM servicios WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// ---------------- Asociación servicio <-> categoría (con precio) ----------------
+router.post('/servicio-categorias', wrap(async (req, res) => {
+  const { servicio_id, categoria_id, precio } = req.body;
+  if (!servicio_id || !categoria_id) {
+    return res.status(400).json({ error: 'servicio_id y categoria_id son requeridos.' });
+  }
+  const info = await db.run(
+    'INSERT INTO servicio_categorias (servicio_id, categoria_id, precio) VALUES (?, ?, ?)',
+    [servicio_id, categoria_id, precio || 0]
+  );
+  res.status(201).json(await db.get('SELECT * FROM servicio_categorias WHERE id = ?', [info.lastInsertRowid]));
+}));
+
+router.put('/servicio-categorias/:id', wrap(async (req, res) => {
+  const { precio } = req.body;
+  await db.run('UPDATE servicio_categorias SET precio = COALESCE(?, precio) WHERE id = ?', [precio ?? null, req.params.id]);
+  res.json(await db.get('SELECT * FROM servicio_categorias WHERE id = ?', [req.params.id]));
+}));
+
+router.delete('/servicio-categorias/:id', wrap(async (req, res) => {
+  await db.run('DELETE FROM servicio_categorias WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 }));
 

@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
     const { fecha, desde, hasta, estado, sector_id } = req.query;
 
     let sql = `
-      SELECT t.*, s.nombre as servicio_nombre, sec.nombre as sector_nombre,
+      SELECT t.*, s.nombre as servicio_nombre, sec.nombre as sector_nombre, cat.nombre as categoria_nombre,
              c.nombre as cliente_nombre, c.apellido as cliente_apellido, c.telefono as cliente_telefono,
              v.tipo as vehiculo_tipo, v.marca as vehiculo_marca, v.patente as vehiculo_patente
       FROM turnos t
@@ -21,6 +21,7 @@ router.get('/', async (req, res) => {
       JOIN sectores sec ON sec.id = t.sector_id
       JOIN clientes c ON c.id = t.cliente_id
       LEFT JOIN vehiculos v ON v.id = t.vehiculo_id
+      LEFT JOIN categorias cat ON cat.id = t.categoria_id
       WHERE 1=1
     `;
     const params = [];
@@ -43,13 +44,21 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { telefono, nombre, apellido, email, vehiculo, servicio_id, sector_id, fecha, hora_inicio } = req.body;
-    if (!telefono || !nombre || !apellido || !servicio_id || !sector_id || !fecha || !hora_inicio) {
+    const { telefono, nombre, apellido, email, vehiculo, servicio_id, categoria_id, sector_id, fecha, hora_inicio } = req.body;
+    if (!telefono || !nombre || !apellido || !servicio_id || !categoria_id || !sector_id || !fecha || !hora_inicio) {
       return res.status(400).json({ error: 'Faltan datos obligatorios.' });
     }
 
     const servicio = await db.get('SELECT * FROM servicios WHERE id = ?', [servicio_id]);
     if (!servicio) return res.status(404).json({ error: 'Servicio no encontrado.' });
+
+    const servicioCategoria = await db.get(
+      'SELECT * FROM servicio_categorias WHERE servicio_id = ? AND categoria_id = ?',
+      [servicio_id, categoria_id]
+    );
+    if (!servicioCategoria) {
+      return res.status(400).json({ error: 'Ese servicio no está disponible en la categoría elegida.' });
+    }
 
     const id = await withTransaction(async (tx) => {
       let cliente = await tx.get('SELECT * FROM clientes WHERE telefono = ?', [telefono]);
@@ -75,9 +84,9 @@ router.post('/', async (req, res) => {
       const hora_fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
 
       const result = await tx.run(
-        `INSERT INTO turnos (cliente_id, vehiculo_id, servicio_id, sector_id, fecha, hora_inicio, hora_fin, precio, estado, estado_pago)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmado', 'pendiente')`,
-        [cliente.id, vehiculoId, servicio_id, sector_id, fecha, hora_inicio, hora_fin, servicio.precio]
+        `INSERT INTO turnos (cliente_id, vehiculo_id, servicio_id, categoria_id, sector_id, fecha, hora_inicio, hora_fin, precio, estado, estado_pago)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmado', 'pendiente')`,
+        [cliente.id, vehiculoId, servicio_id, categoria_id, sector_id, fecha, hora_inicio, hora_fin, servicioCategoria.precio]
       );
 
       return result.lastInsertRowid;
@@ -118,6 +127,7 @@ router.put('/:id', async (req, res) => {
     if (hora_inicio !== undefined) { fields.push('hora_inicio = ?'); params.push(hora_inicio); }
     if (hora_fin !== undefined) { fields.push('hora_fin = ?'); params.push(hora_fin); }
     if (sector_id !== undefined) { fields.push('sector_id = ?'); params.push(sector_id); }
+    if (req.body.categoria_id !== undefined) { fields.push('categoria_id = ?'); params.push(req.body.categoria_id); }
     if (notas !== undefined) { fields.push('notas = ?'); params.push(notas); }
     fields.push("actualizado_en = datetime('now')");
 

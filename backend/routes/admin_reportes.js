@@ -55,6 +55,13 @@ router.get('/resumen', async (req, res) => {
       GROUP BY sec.nombre ORDER BY cantidad DESC
     `, [desde, hasta]);
 
+    const porCategoria = await db.all(`
+      SELECT cat.nombre as categoria, COUNT(*) as cantidad, SUM(t.precio) as ingresos
+      FROM turnos t JOIN categorias cat ON cat.id = t.categoria_id
+      WHERE t.fecha BETWEEN ? AND ? AND t.estado != 'cancelado'
+      GROUP BY cat.nombre ORDER BY ingresos DESC
+    `, [desde, hasta]);
+
     const clientesTop = await db.all(`
       SELECT c.nombre, c.apellido, c.telefono, COUNT(*) as visitas, SUM(t.precio) as gastado
       FROM turnos t JOIN clientes c ON c.id = t.cliente_id
@@ -62,7 +69,7 @@ router.get('/resumen', async (req, res) => {
       GROUP BY c.id ORDER BY visitas DESC LIMIT 10
     `, [desde, hasta]);
 
-    res.json({ rango: { desde, hasta }, totales, porEstado, porServicio, porDia, porSector, clientesTop });
+    res.json({ rango: { desde, hasta }, totales, porEstado, porServicio, porDia, porSector, porCategoria, clientesTop });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al generar el reporte.' });

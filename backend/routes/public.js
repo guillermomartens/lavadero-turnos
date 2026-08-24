@@ -6,6 +6,14 @@ const { enviarConfirmacionTurno, enviarCancelacionTurno } = require('../utils/em
 
 const router = express.Router();
 
+// ---------- Configuración pública (datos no sensibles del negocio) ----------
+
+router.get('/config', (req, res) => {
+  res.json({
+    whatsapp_numero: process.env.WHATSAPP_NUMERO || null
+  });
+});
+
 // ---------- Categorias / Servicios / Sectores (solo activos) ----------
 
 router.get('/categorias', async (req, res) => {
@@ -25,14 +33,25 @@ router.get('/servicios', async (req, res) => {
     const { categoria_id } = req.query;
     let servicios;
     if (categoria_id) {
-      servicios = await db.all(
-        'SELECT id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo FROM servicios WHERE activo = 1 AND categoria_id = ? ORDER BY nombre',
-        [categoria_id]
-      );
+      // Precio especifico para esta categoria (un mismo servicio puede valer distinto en otra)
+      servicios = await db.all(`
+        SELECT s.id, s.nombre, s.descripcion, s.duracion_min, s.aplica_tipo_vehiculo, sc.precio, sc.categoria_id
+        FROM servicio_categorias sc
+        JOIN servicios s ON s.id = sc.servicio_id
+        WHERE s.activo = 1 AND sc.categoria_id = ?
+        ORDER BY s.nombre
+      `, [categoria_id]);
     } else {
-      servicios = await db.all(
-        'SELECT id, nombre, descripcion, duracion_min, precio, aplica_tipo_vehiculo, categoria_id FROM servicios WHERE activo = 1 ORDER BY nombre'
-      );
+      // Sin categoria especifica: devolver cada servicio con todas sus categorias/precios
+      const base = await db.all(`SELECT * FROM servicios WHERE activo = 1 ORDER BY nombre`);
+      const asociaciones = await db.all(`
+        SELECT sc.servicio_id, sc.categoria_id, sc.precio, c.nombre as categoria_nombre
+        FROM servicio_categorias sc JOIN categorias c ON c.id = sc.categoria_id
+      `);
+      servicios = base.map(s => ({
+        ...s,
+        categorias: asociaciones.filter(a => a.servicio_id === s.id)
+      }));
     }
     res.json(servicios);
   } catch (err) {
@@ -106,16 +125,24 @@ router.post('/turnos', async (req, res) => {
   const {
     telefono, nombre, apellido, email,
     vehiculo,
-    servicio_id, sector_id, fecha, hora_inicio
+    servicio_id, categoria_id, sector_id, fecha, hora_inicio
   } = req.body;
 
-  if (!telefono || !nombre || !apellido || !servicio_id || !sector_id || !fecha || !hora_inicio) {
+  if (!telefono || !nombre || !apellido || !servicio_id || !categoria_id || !sector_id || !fecha || !hora_inicio) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para agendar el turno.' });
   }
 
   try {
     const servicio = await db.get('SELECT * FROM servicios WHERE id = ? AND activo = 1', [servicio_id]);
     if (!servicio) return res.status(404).json({ error: 'Servicio no encontrado.' });
+
+    const servicioCategoria = await db.get(
+      'SELECT * FROM servicio_categorias WHERE servicio_id = ? AND categoria_id = ?',
+      [servicio_id, categoria_id]
+    );
+    if (!servicioCategoria) {
+      return res.status(400).json({ error: 'Ese servicio no está disponible en la categoría elegida.' });
+    }
 
     // Revalidar disponibilidad antes de la transacción para evitar dobles reservas
     const slots = await getSlotsDisponibles({ sectorId: Number(sector_id), servicioId: Number(servicio_id), fecha });
@@ -153,9 +180,9 @@ router.post('/turnos', async (req, res) => {
       const hora_fin = `${String(Math.floor(finMin / 60)).padStart(2, '0')}:${String(finMin % 60).padStart(2, '0')}`;
 
       const result = await tx.run(
-        `INSERT INTO turnos (cliente_id, vehiculo_id, servicio_id, sector_id, fecha, hora_inicio, hora_fin, precio, estado, estado_pago)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', 'pendiente')`,
-        [cliente.id, vehiculoId, servicio_id, sector_id, fecha, hora_inicio, hora_fin, servicio.precio]
+        `INSERT INTO turnos (cliente_id, vehiculo_id, servicio_id, categoria_id, sector_id, fecha, hora_inicio, hora_fin, precio, estado, estado_pago)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', 'pendiente')`,
+        [cliente.id, vehiculoId, servicio_id, categoria_id, sector_id, fecha, hora_inicio, hora_fin, servicioCategoria.precio]
       );
 
       return result.lastInsertRowid;
