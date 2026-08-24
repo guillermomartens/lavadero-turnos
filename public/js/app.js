@@ -474,6 +474,7 @@ async function confirmarTurno() {
         email: state.email || null,
         vehiculo: { tipo: state.vehiculoTipo, marca: state.vehiculoMarca, patente: state.vehiculoPatente },
         servicio_id: state.servicioId,
+        categoria_id: state.categoriaId,
         sector_id: state.sectorId,
         fecha: state.fecha,
         hora_inicio: state.horaInicio
@@ -488,7 +489,7 @@ async function confirmarTurno() {
   }
 }
 
-function renderSuccess() {
+async function renderSuccess() {
   $('#heroTitle').textContent = '¡Todo listo!';
   $('#heroSubtitle').textContent = 'Tu turno fue agendado con éxito.';
   $('.wave-progress').style.display = 'none';
@@ -500,6 +501,22 @@ function renderSuccess() {
     el('p', {}, `${t.servicio_nombre} · ${t.fecha} a las ${t.hora_inicio}hs · ${t.sector_nombre}`),
     el('button', { class: 'btn btn-primary', onclick: () => location.reload() }, 'Agendar otro turno')
   );
+
+  // Botón opcional para confirmar por WhatsApp (si el lavadero configuró un número)
+  try {
+    const config = await api('/config');
+    if (config.whatsapp_numero) {
+      const mensaje = `Hola! Quiero confirmar mi turno de ${t.servicio_nombre} el ${t.fecha} a las ${t.hora_inicio}hs.`;
+      const url = `https://wa.me/${config.whatsapp_numero}?text=${encodeURIComponent(mensaje)}`;
+      container.appendChild(
+        el('a', {
+          href: url, target: '_blank', rel: 'noopener',
+          class: 'btn btn-whatsapp', style: 'display:block;text-decoration:none;margin-top:10px;text-align:center;'
+        }, '💬 Confirmar por WhatsApp')
+      );
+    }
+  } catch (e) { /* si falla, simplemente no se muestra el botón */ }
+
   $('#stepsContainer').innerHTML = '';
   $('#stepsContainer').appendChild(container);
 }
